@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🧪 執行提交前測試檢查..."
+
+# 運行健康檢查測試
+pnpm test:health
+
+if [ $? -ne 0 ]; then
+  echo "❌ 健康檢查測試失敗，提交被阻止"
+  echo "💡 請修復測試問題後再次提交"
+  exit 1
+fi
+
+echo "✅ 所有測試通過，允許提交" 
