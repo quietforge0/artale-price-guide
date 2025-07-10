@@ -1,5 +1,6 @@
 {
   "name": "artale-price-guide",
+  "homepage": "https://quietforge0.github.io/artale-price-guide/",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -20,7 +21,9 @@
     "test:all": "node scripts/run-all-tests.js",
     "test:all:simple": "echo '🔍 執行所有測試' && pnpm test:health && echo '✅ 健康測試完成' && pnpm test:quick && echo '✅ 快速測試完成' && pnpm test:core && echo '✅ 核心測試完成' && vitest run --reporter=basic src/test/fuzz && echo '✅ Fuzz測試完成' && vitest run --reporter=basic src/test/e2e && echo '✅ E2E測試完成' && echo '🎉 所有測試完成！'",
     "test:all:core": "echo '🔍 執行核心測試套件 (無E2E)' && pnpm test:health && echo '✅ 健康測試完成' && pnpm test:quick && echo '✅ 快速測試完成' && pnpm test:core && echo '✅ 核心測試完成' && vitest run --reporter=basic src/test/fuzz && echo '✅ Fuzz測試完成' && echo '🎉 所有核心測試完成！算法驗證通過！'",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "predeploy": "pnpm run build",
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
@@ -43,6 +46,7 @@
     "eslint": "^9.29.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
+    "gh-pages": "^6.3.0",
     "globals": "^16.2.0",
     "jsdom": "^26.1.0",
     "postcss": "^8.5.6",
