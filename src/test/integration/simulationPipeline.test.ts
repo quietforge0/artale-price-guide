@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { SCROLLS, getScrollsForEquipmentType } from "../../constants/scrolls";
+import { SCROLLS } from "../../constants/scrolls";
 import { EQUIPMENT_TYPES } from "../../constants/equipmentTypes";
+import type { SimulationResult } from "../../types";
 
 describe("模擬流程整合測試", () => {
   // 模擬完整的數據流程
@@ -18,16 +19,6 @@ describe("模擬流程整合測試", () => {
       scrollPrices: Record<string, number>;
     };
     simulationCount: number;
-  }
-
-  interface SimulationResult {
-    success: boolean;
-    destroyed: boolean;
-    stoppedByCondition: boolean;
-    finalStats: Record<string, number>;
-    scrollsUsed: number;
-    totalCost?: number;
-    stopLossReason?: string;
   }
 
   // 核心模擬邏輯
@@ -287,11 +278,11 @@ describe("模擬流程整合測試", () => {
       const { results, statistics, groupedResults } = runSimulation(config);
 
       // 基本統計驗證
-      expect(statistics.totalRuns).toBe(200);
+      expect(results.length).toBe(200);
       expect(
-        statistics.successCount +
-          statistics.destroyedCount +
-          statistics.stopLossCount
+        results.filter((r) => r.success).length +
+          results.filter((r) => r.destroyed).length +
+          results.filter((r) => r.stoppedByCondition).length
       ).toBe(200);
 
       // 成本計算驗證
@@ -331,10 +322,12 @@ describe("模擬流程整合測試", () => {
         simulationCount: 50,
       };
 
-      const { statistics } = runSimulation(config);
+      const { results } = runSimulation(config);
 
       // 由於停損條件不可能達成，大部分應該被停損
-      expect(statistics.stopLossCount).toBeGreaterThan(statistics.successCount);
+      expect(
+        results.filter((r) => r.stoppedByCondition).length
+      ).toBeGreaterThan(results.filter((r) => r.success).length);
     });
 
     it("效能測試：大量模擬應該在合理時間內完成", () => {
@@ -359,13 +352,12 @@ describe("模擬流程整合測試", () => {
       };
 
       const startTime = performance.now();
-      const { results, statistics } = runSimulation(config);
+      const { results } = runSimulation(config);
       const endTime = performance.now();
 
       const duration = endTime - startTime;
 
       expect(results).toHaveLength(5000);
-      expect(statistics.totalRuns).toBe(5000);
       expect(duration).toBeLessThan(3000); // 應該在3秒內完成
 
       console.log(`5000次模擬完成時間: ${duration.toFixed(0)}ms`);
@@ -475,7 +467,7 @@ describe("模擬流程整合測試", () => {
         simulationCount: 10,
       };
 
-      const { results, statistics } = runSimulation(config);
+      const { results } = runSimulation(config);
 
       expect(results).toHaveLength(10);
       results.forEach((result) => {

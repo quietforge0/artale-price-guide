@@ -3,22 +3,6 @@ import { SCROLLS, getScrollsForEquipmentType } from "../../constants/scrolls";
 import { EQUIPMENT_TYPES } from "../../constants/equipmentTypes";
 import { AVAILABLE_EQUIPMENT_TYPES } from "../../constants/equipment";
 
-// 類型定義
-interface SimulationResult {
-  success: boolean;
-  destroyed: boolean;
-  stoppedByCondition: boolean;
-  finalStats: { [key: string]: number };
-  scrollsUsed: number;
-  totalCost: number;
-}
-
-interface StopLossCondition {
-  attribute: string;
-  minValue: number;
-  scrollIndex: number;
-}
-
 describe("模糊測試 - 隨機配置組合", () => {
   // 隨機測試工具函數
   const getRandomElement = <T>(array: T[]): T => {
@@ -211,7 +195,6 @@ describe("模糊測試 - 隨機配置組合", () => {
         const result = simulateRandomRun(scrollSequence, stopLossConditions);
         results.push({
           conditionCount,
-          stoppedByCondition: result.stoppedByCondition,
           ...result,
         });
       }
@@ -237,8 +220,10 @@ describe("模糊測試 - 隨機配置組合", () => {
 
   describe("極值和邊界測試", () => {
     it("測試極大數量的卷軸序列", () => {
-      const equipType = EQUIPMENT_TYPES.GUN; // 使用已知有卷軸的類型
-      const largeSequence = generateRandomScrollSequence(equipType, 50); // 超大序列
+      const largeSequence = generateRandomScrollSequence(
+        EQUIPMENT_TYPES.GUN,
+        50
+      ); // 超大序列
 
       const result = simulateRandomRun(largeSequence);
 
@@ -249,8 +234,10 @@ describe("模糊測試 - 隨機配置組合", () => {
     });
 
     it("測試極端停損條件", () => {
-      const equipType = EQUIPMENT_TYPES.GUN;
-      const scrollSequence = generateRandomScrollSequence(equipType, 5);
+      const scrollSequence = generateRandomScrollSequence(
+        EQUIPMENT_TYPES.GUN,
+        5
+      );
 
       if (scrollSequence.length === 0) return;
 
@@ -272,8 +259,10 @@ describe("模糊測試 - 隨機配置組合", () => {
     });
 
     it("測試零成本設定", () => {
-      const equipType = EQUIPMENT_TYPES.GUN;
-      const scrollSequence = generateRandomScrollSequence(equipType, 3);
+      const scrollSequence = generateRandomScrollSequence(
+        EQUIPMENT_TYPES.GUN,
+        3
+      );
 
       // 模擬零成本情況
       const simulateZeroCost = () => {
@@ -405,7 +394,6 @@ describe("模糊測試 - 隨機配置組合", () => {
 
   describe("隨機性驗證測試", () => {
     it("驗證相同配置產生不同結果", () => {
-      const equipType = EQUIPMENT_TYPES.GUN;
       const fixedScrollSequence = ["gun_att_10", "gun_att_60", "gun_att_60"];
 
       const results: any[] = [];

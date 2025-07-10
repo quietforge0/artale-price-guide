@@ -63,3 +63,21 @@ export interface AttributeStats {
 export interface CalculationRequirement {
   [key: string]: number;
 }
+
+// 模擬結果
+export interface SimulationResult {
+  success: boolean;
+  destroyed: boolean;
+  stoppedByCondition: boolean;
+  finalStats: { [key: string]: number };
+  scrollsUsed: number;
+  totalCost?: number;
+  stopLossReason?: string;
+}
+
+// 停損條件
+export interface StopLossCondition {
+  attribute: string;
+  minValue: number;
+  scrollIndex: number;
+}

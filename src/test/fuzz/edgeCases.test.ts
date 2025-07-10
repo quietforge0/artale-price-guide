@@ -309,7 +309,7 @@ describe("模糊測試 - 邊緣情況處理", () => {
 
       referencedTypes.forEach((referencedType) => {
         expect(
-          definedTypes.has(referencedType),
+          definedTypes.has(referencedType as any),
           `未定義的裝備類型: ${referencedType}`
         ).toBe(true);
       });
@@ -421,14 +421,7 @@ describe("模糊測試 - 邊緣情況處理", () => {
     });
 
     it("處理特殊數字格式", () => {
-      const specialNumbers = [
-        "1,000", // 千位分隔符
-        "1.5k", // K記號
-        "2.5萬", // 中文單位
-        "1e3", // 科學記號
-        "0xFF", // 十六進制
-        "∞", // 無限符號
-      ];
+      // 測試特殊數字格式的解析
 
       const parseSpecialNumber = (value: string): number => {
         // 移除千位分隔符

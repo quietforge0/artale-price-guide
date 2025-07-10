@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SimpleScrollPage } from "../../pages/SimpleScrollPage";
-import React from "react";
 
 // 端到端測試 - 簡化衝卷模擬器
 describe("E2E Tests - 簡化衝卷模擬器", () => {

@@ -5,6 +5,13 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  background: #181a20;
+  min-height: 100vh;
+  color-scheme: dark;
+}
+
 html {
   scroll-behavior: smooth;
 }
