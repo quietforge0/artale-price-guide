@@ -11,6 +11,20 @@ import scroll10 from "../assets/10.webp";
 import scroll30 from "../assets/30.webp";
 import scroll60 from "../assets/60.webp";
 import scroll100 from "../assets/100.webp";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // 模擬結果
 interface SimulationResult {
@@ -72,7 +86,6 @@ export const ScrollSimulator: React.FC = () => {
 
   // 卷軸相關
   const [selectedScrolls, setSelectedScrolls] = useState<string[]>([]);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [scrollCounts, setScrollCounts] = useState<{
     [scrollId: string]: number;
   }>({});
@@ -101,6 +114,9 @@ export const ScrollSimulator: React.FC = () => {
   const [results, setResults] = useState<SimulationResult[]>([]);
   const [resultStats, setResultStats] = useState<ResultStats | null>(null);
 
+  // 在 ScrollSimulator 組件內部 state 區塊新增 maxScrollCount 狀態
+  const [maxScrollCount, setMaxScrollCount] = useState<number>(7);
+
   const MAX_SIMULATION_COUNT = 1000;
 
   // 獲取可用卷軸
@@ -116,6 +132,11 @@ export const ScrollSimulator: React.FC = () => {
     if (!selectedEquipmentType) return [];
     return getAvailableAttributesForEquipment(selectedEquipmentType);
   }, [selectedEquipmentType]);
+
+  // 在 ScrollSimulator 組件內部頂部宣告 sensors，啟用 activationConstraint: { distance: 8 }
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   // 數字輸入框組件 - 修復焦點問題
   const NumberInput: React.FC<{
@@ -242,40 +263,20 @@ export const ScrollSimulator: React.FC = () => {
 
   // 批量添加卷軸
   const addScrollsInBatch = (scrollId: string, count: number) => {
-    const newScrolls = Array(count).fill(scrollId);
-    setSelectedScrolls((prev) => [...prev, ...newScrolls]);
+    setSelectedScrolls((prev) => {
+      const canAdd = Math.max(0, maxScrollCount - prev.length);
+      if (canAdd <= 0) return prev;
+      const addCount = Math.min(count, canAdd);
+      return [...prev, ...Array(addCount).fill(scrollId)];
+    });
   };
 
-  // 處理拖拽開始
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  // 處理拖拽結束
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-  };
-
-  // 處理拖拽過程
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  // 處理放置
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    if (draggedIndex === null) return;
-
-    const newScrolls = [...selectedScrolls];
-    const draggedItem = newScrolls[draggedIndex];
-    newScrolls.splice(draggedIndex, 1);
-    newScrolls.splice(dropIndex, 0, draggedItem);
-
-    setSelectedScrolls(newScrolls);
-    setDraggedIndex(null);
-  };
+  // 當 maxScrollCount 被調小時，自動移除多餘捲軸
+  useEffect(() => {
+    setSelectedScrolls((prev) =>
+      prev.length > maxScrollCount ? prev.slice(0, maxScrollCount) : prev
+    );
+  }, [maxScrollCount]);
 
   // 移除卷軸
   const removeScroll = (index: number) => {
@@ -470,6 +471,71 @@ export const ScrollSimulator: React.FC = () => {
     return scroll10; // fallback
   };
 
+  // SortableItem 元件 for dnd-kit
+  function SortableItem({
+    id,
+    index,
+    scroll,
+    onRemove,
+  }: {
+    id: string;
+    index: number;
+    scroll: any;
+    onRemove: (idx: number) => void;
+  }) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      boxShadow: isDragging ? "0 4px 16px 0 rgba(80,180,255,0.25)" : undefined,
+      zIndex: isDragging ? 50 : undefined,
+    };
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-move mb-2 ${
+          isDragging
+            ? "border-blue-400 bg-blue-500/20 shadow-lg"
+            : "border-gray-600/50 bg-gray-700/30 hover:bg-gray-700/50"
+        }`}
+      >
+        <img
+          src={getScrollIcon(scroll.successRate)}
+          alt={scroll.successRate + "% icon"}
+          className="w-8 h-8 rounded shadow border border-gray-600/50 bg-gray-800/60"
+        />
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400 text-sm font-mono">#{index + 1}</span>
+          <div className="px-4 py-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md min-w-[48px] text-center">
+            {scroll.successRate}%
+          </div>
+        </div>
+        <div className="flex-1">
+          <div className="font-medium text-white text-sm">{scroll.name}</div>
+          <div className="text-xs text-gray-400">
+            +{scroll.primaryEffect.value} {scroll.primaryEffect.stat}
+          </div>
+        </div>
+        <button
+          onClick={() => onRemove(index)}
+          className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-sm transition-colors"
+        >
+          移除
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900/20 to-purple-900/20">
       <div className="container mx-auto px-4 py-8">
@@ -535,36 +601,64 @@ export const ScrollSimulator: React.FC = () => {
                 {/* 右側裝備選項 */}
                 <div className="flex-1">
                   <div className="bg-gray-700/30 backdrop-blur-sm rounded-xl border border-gray-600/50 p-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+                    <div
+                      className="grid gap-2"
+                      style={{
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(96px, 1fr))",
+                      }}
+                    >
                       {EQUIPMENT_BY_CATEGORY_WITH_SCROLLS[activeCategory]?.map(
                         (equipment) => (
                           <button
                             key={equipment}
                             onClick={() => handleEquipmentChange(equipment)}
-                            className={`relative p-2 rounded-lg border transition-all duration-300 group overflow-hidden ${
-                              selectedEquipmentType === equipment
-                                ? "border-blue-400 bg-gradient-to-br from-blue-500/20 to-purple-500/20 shadow-lg shadow-blue-500/25"
-                                : "border-gray-600/50 bg-gray-600/20 hover:border-blue-400/60 hover:bg-gradient-to-br hover:from-blue-500/10 hover:to-purple-500/10"
-                            }`}
+                            className={
+                              `relative p-2 rounded-lg border transition-all duration-300 group overflow-hidden w-full` +
+                              (selectedEquipmentType === equipment
+                                ? " border-blue-400 bg-gradient-to-br from-blue-500/20 to-purple-500/20 shadow-lg shadow-blue-500/25"
+                                : " border-gray-600/50 bg-gray-600/20 hover:border-blue-400/60 hover:bg-gradient-to-br hover:from-blue-500/10 hover:to-purple-500/10")
+                            }
                           >
                             <div className="absolute inset-0 bg-gradient-to-br from-blue-400/0 to-purple-400/0 group-hover:from-blue-400/10 group-hover:to-purple-400/10 transition-all duration-300 rounded-lg"></div>
-                            <div className="relative z-10 text-center">
+                            <div className="relative z-10 flex flex-col items-center justify-center text-center h-full">
                               <div
-                                className={`text-lg mb-1 transition-all duration-300 ${
+                                className={`text-lg mb-1 transition-all duration-300 flex items-center justify-center w-full ${
                                   selectedEquipmentType === equipment
                                     ? "scale-110"
                                     : "group-hover:scale-110"
                                 }`}
+                                style={{ minHeight: "36px" }}
                               >
-                                {EQUIPMENT_ICONS[equipment] || "📦"}
+                                {EQUIPMENT_ICONS[equipment] ? (
+                                  <img
+                                    src={EQUIPMENT_ICONS[equipment]}
+                                    alt={equipment}
+                                    className="w-8 h-8 object-contain mx-auto"
+                                    onError={(e) => {
+                                      const target =
+                                        e.currentTarget as HTMLElement;
+                                      target.style.display = "none";
+                                      const fallback =
+                                        target.nextElementSibling as HTMLElement;
+                                      if (fallback) {
+                                        fallback.style.display = "block";
+                                      }
+                                    }}
+                                  />
+                                ) : null}
+                                <span
+                                  className="text-xl"
+                                  style={{
+                                    display: EQUIPMENT_ICONS[equipment]
+                                      ? "none"
+                                      : "block",
+                                  }}
+                                >
+                                  📦
+                                </span>
                               </div>
-                              <div
-                                className={`text-xs font-medium transition-colors duration-300 whitespace-nowrap ${
-                                  selectedEquipmentType === equipment
-                                    ? "text-blue-300"
-                                    : "text-gray-300 group-hover:text-white"
-                                }`}
-                              >
+                              <div className="text-xs mt-1 text-gray-200 font-medium whitespace-nowrap text-center">
                                 {equipment}
                               </div>
                             </div>
@@ -580,7 +674,17 @@ export const ScrollSimulator: React.FC = () => {
                 <div className="mt-4 p-3 bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm rounded-xl border border-green-500/30">
                   <div className="flex items-center space-x-3">
                     <div className="text-lg animate-pulse">
-                      {EQUIPMENT_ICONS[selectedEquipmentType]}
+                      {EQUIPMENT_ICONS[selectedEquipmentType] ? (
+                        <img
+                          src={EQUIPMENT_ICONS[selectedEquipmentType]}
+                          alt={selectedEquipmentType}
+                          className="w-8 h-8 object-contain"
+                          style={{
+                            display: "inline-block",
+                            verticalAlign: "middle",
+                          }}
+                        />
+                      ) : null}
                     </div>
                     <div className="flex-1">
                       <div className="font-semibold text-white text-sm">
@@ -720,10 +824,24 @@ export const ScrollSimulator: React.FC = () => {
           <div className="lg:col-span-1 space-y-6">
             {/* 可用卷軸 */}
             <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <span className="mr-2">📜</span>
-                可用卷軸
-              </h3>
+              <div className="flex items-center mb-4 gap-3">
+                <h3 className="text-lg font-semibold text-white flex items-center">
+                  <span className="mr-2">📜</span>
+                  可用卷軸
+                </h3>
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-xs text-gray-300">
+                    本裝備可衝捲軸數
+                  </span>
+                  <NumberInput
+                    value={maxScrollCount}
+                    onChange={setMaxScrollCount}
+                    min={0}
+                    max={12}
+                    className="w-14 text-xs"
+                  />
+                </div>
+              </div>
 
               {availableScrolls.length === 0 ? (
                 <div className="text-center py-8">
@@ -773,7 +891,13 @@ export const ScrollSimulator: React.FC = () => {
                               scrollCounts[scroll.id] || 1
                             )
                           }
-                          className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-sm transition-colors"
+                          className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={selectedScrolls.length >= maxScrollCount}
+                          title={
+                            selectedScrolls.length >= maxScrollCount
+                              ? "已達可衝捲軸上限"
+                              : ""
+                          }
                         >
                           添加
                         </button>
@@ -786,10 +910,15 @@ export const ScrollSimulator: React.FC = () => {
 
             {/* 衝卷順序 */}
             <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <span className="mr-2">🔄</span>
-                衝卷順序
-              </h3>
+              <div className="flex items-center mb-4 gap-3">
+                <h3 className="text-lg font-semibold text-white flex items-center">
+                  <span className="mr-2">🔄</span>
+                  衝卷順序
+                </h3>
+                <div className="ml-4 text-xs text-gray-400">
+                  {selectedScrolls.length} / {maxScrollCount} 捲軸已新增
+                </div>
+              </div>
 
               {selectedScrolls.length === 0 ? (
                 <div className="text-center py-8">
@@ -799,55 +928,42 @@ export const ScrollSimulator: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {selectedScrolls.map((scrollId, index) => {
-                    const scroll = SCROLLS.find((s) => s.id === scrollId);
-                    if (!scroll) return null;
-
-                    return (
-                      <div
-                        key={`${scrollId}-${index}`}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, index)}
-                        className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-move ${
-                          draggedIndex === index
-                            ? "border-blue-400 bg-blue-500/20"
-                            : "border-gray-600/50 bg-gray-700/30 hover:bg-gray-700/50"
-                        }`}
-                      >
-                        <img
-                          src={getScrollIcon(scroll.successRate)}
-                          alt={scroll.successRate + "% icon"}
-                          className="w-8 h-8 rounded shadow border border-gray-600/50 bg-gray-800/60"
-                        />
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400 text-sm font-mono">
-                            #{index + 1}
-                          </span>
-                          <div className="px-4 py-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md min-w-[48px] text-center">
-                            {scroll.successRate}%
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-white text-sm">
-                            {scroll.name}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            +{scroll.primaryEffect.value}{" "}
-                            {scroll.primaryEffect.stat}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => removeScroll(index)}
-                          className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-sm transition-colors"
-                        >
-                          移除
-                        </button>
-                      </div>
-                    );
-                  })}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={({ active, over }: any) => {
+                      if (active.id !== over?.id && over) {
+                        const oldIndex = selectedScrolls.findIndex(
+                          (_, i) => `${selectedScrolls[i]}-${i}` === active.id
+                        );
+                        const newIndex = selectedScrolls.findIndex(
+                          (_, i) => `${selectedScrolls[i]}-${i}` === over.id
+                        );
+                        setSelectedScrolls((items) =>
+                          arrayMove(items, oldIndex, newIndex)
+                        );
+                      }
+                    }}
+                  >
+                    <SortableContext
+                      items={selectedScrolls.map((id, i) => `${id}-${i}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {selectedScrolls.map((scrollId, index) => {
+                        const scroll = SCROLLS.find((s) => s.id === scrollId);
+                        if (!scroll) return null;
+                        return (
+                          <SortableItem
+                            key={`${scrollId}-${index}`}
+                            id={`${scrollId}-${index}`}
+                            index={index}
+                            scroll={scroll}
+                            onRemove={removeScroll}
+                          />
+                        );
+                      })}
+                    </SortableContext>
+                  </DndContext>
                 </div>
               )}
             </div>
@@ -1293,7 +1409,14 @@ export const ScrollSimulator: React.FC = () => {
 
                   {/* 成功的結果按屬性分組 */}
                   {Object.entries(groupedResults.byAttribute)
-                    .sort(([, a], [, b]) => b.length - a.length) // 按次數降序排列
+                    .sort((a, b) => {
+                      // 解析 key 取出物攻數值
+                      const getAtk = (key: string) => {
+                        const match = key.match(/物攻:\+(\d+)/);
+                        return match ? parseInt(match[1], 10) : 0;
+                      };
+                      return getAtk(b[0]) - getAtk(a[0]);
+                    })
                     .map(([key, groupResults]) => (
                       <div
                         key={key}
@@ -1314,7 +1437,19 @@ export const ScrollSimulator: React.FC = () => {
                           <div className="flex items-center justify-between">
                             <div>
                               <div className="font-semibold text-green-300 mb-1">
-                                ✅ {key} ({groupResults.length} 次)
+                                {(() => {
+                                  // 解析 key，將物攻優先顯示
+                                  const parts = key.split(", ");
+                                  const atkIdx = parts.findIndex((p) =>
+                                    p.startsWith("物攻:")
+                                  );
+                                  let display = key;
+                                  if (atkIdx > -1) {
+                                    const atk = parts.splice(atkIdx, 1)[0];
+                                    display = [atk, ...parts].join(", ");
+                                  }
+                                  return `✅ ${display} (${groupResults.length} 次)`;
+                                })()}
                               </div>
                               <div className="text-sm text-gray-400">
                                 {(

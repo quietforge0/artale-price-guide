@@ -3,6 +3,7 @@ import {
   EQUIPMENT_BY_CATEGORY_WITH_SCROLLS,
   EQUIPMENT_ICONS,
 } from "../constants/equipment.ts";
+import testHelmet from "../assets/equipment/helmet.webp";
 
 interface EquipmentSelectorProps {
   selectedEquipment: string;
@@ -15,6 +16,14 @@ export const EquipmentSelector = ({
   onEquipmentChange,
   availableScrollsCount,
 }: EquipmentSelectorProps) => {
+  // log 一進來就印
+  console.log("EQUIPMENT_ICONS", EQUIPMENT_ICONS);
+  console.log("selectedEquipment", selectedEquipment);
+  console.log(
+    "EQUIPMENT_ICONS[selectedEquipment]",
+    EQUIPMENT_ICONS[selectedEquipment]
+  );
+
   const categories = Object.keys(EQUIPMENT_BY_CATEGORY_WITH_SCROLLS) as Array<
     keyof typeof EQUIPMENT_BY_CATEGORY_WITH_SCROLLS
   >;
@@ -24,6 +33,17 @@ export const EquipmentSelector = ({
 
   return (
     <div className="relative group h-full">
+      {/* 測試直接顯示 import 變數圖片 */}
+      <div style={{ marginBottom: 8 }}>
+        <img
+          src={testHelmet}
+          alt="test helmet"
+          style={{ width: 32, height: 32, border: "2px solid red" }}
+        />
+        <span style={{ color: "red", fontSize: 12 }}>
+          （這是測試圖，應該要正常顯示）
+        </span>
+      </div>
       {/* 光暈背景效果 */}
       <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition-opacity duration-300"></div>
 
@@ -95,14 +115,59 @@ export const EquipmentSelector = ({
                           {/* 背景光效 */}
                           <div className="absolute inset-0 bg-gradient-to-br from-blue-400/0 to-purple-400/0 group-hover:from-blue-400/10 group-hover:to-purple-400/10 transition-all duration-300 rounded-lg"></div>
                           <div className="relative z-10 text-center">
+                            {(() => {
+                              console.log("EQUIPMENT_ICONS", EQUIPMENT_ICONS);
+                              console.log("equipment", equipment);
+                              console.log(
+                                "EQUIPMENT_ICONS[equipment]",
+                                EQUIPMENT_ICONS[equipment]
+                              );
+                              return null;
+                            })()}
+                            {/* 測試直接顯示 import 變數圖片 */}
+                            <img
+                              src={testHelmet}
+                              alt="test helmet"
+                              style={{
+                                width: 32,
+                                height: 32,
+                                border: "2px solid red",
+                              }}
+                            />
                             <div
-                              className={`text-xl mb-1 transition-all duration-300 ${
+                              className={`mb-1 transition-all duration-300 flex justify-center items-center ${
                                 selectedEquipment === equipment
                                   ? "scale-110"
                                   : "group-hover:scale-110"
                               }`}
                             >
-                              {EQUIPMENT_ICONS[equipment] || "📦"}
+                              {EQUIPMENT_ICONS[equipment] ? (
+                                <img
+                                  src={EQUIPMENT_ICONS[equipment]}
+                                  alt={equipment}
+                                  className="w-8 h-8 object-contain"
+                                  onError={(e) => {
+                                    const target =
+                                      e.currentTarget as HTMLElement;
+                                    target.style.display = "none";
+                                    const fallback =
+                                      target.nextElementSibling as HTMLElement;
+                                    if (fallback) {
+                                      fallback.style.display = "block";
+                                    }
+                                  }}
+                                />
+                              ) : null}
+                              <span
+                                className="text-xl"
+                                style={{
+                                  display: EQUIPMENT_ICONS[equipment]
+                                    ? "none"
+                                    : "block",
+                                }}
+                              >
+                                📦
+                              </span>
                             </div>
                             <div
                               className={`text-xs font-medium transition-colors duration-300 whitespace-nowrap ${
@@ -126,8 +191,33 @@ export const EquipmentSelector = ({
           {selectedEquipment && (
             <div className="mt-4 p-4 bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm rounded-xl border border-green-500/30">
               <div className="flex items-center space-x-3">
-                <div className="text-xl animate-pulse">
-                  {EQUIPMENT_ICONS[selectedEquipment]}
+                <div className="animate-pulse">
+                  {EQUIPMENT_ICONS[selectedEquipment] ? (
+                    <img
+                      src={EQUIPMENT_ICONS[selectedEquipment]}
+                      alt={selectedEquipment}
+                      className="w-8 h-8 object-contain"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLElement;
+                        target.style.display = "none";
+                        const fallback =
+                          target.nextElementSibling as HTMLElement;
+                        if (fallback) {
+                          fallback.style.display = "block";
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <span
+                    className="text-xl"
+                    style={{
+                      display: EQUIPMENT_ICONS[selectedEquipment]
+                        ? "none"
+                        : "block",
+                    }}
+                  >
+                    📦
+                  </span>
                 </div>
                 <div>
                   <div className="font-semibold text-white">
