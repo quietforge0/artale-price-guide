@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import type { Scroll } from "../types/index.ts";
 import { SCROLLS } from "../constants/scrolls.ts";
 import {
@@ -25,6 +31,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import * as RadixSelect from "@radix-ui/react-select";
 
 // 模擬結果
 interface SimulationResult {
@@ -119,6 +126,9 @@ export const ScrollSimulator: React.FC = () => {
 
   const MAX_SIMULATION_COUNT = 1000;
 
+  // 在 ScrollSimulator 組件內部加一個 ref
+  const resultRef = useRef<HTMLDivElement>(null);
+
   // 獲取可用卷軸
   const availableScrolls = useMemo((): Scroll[] => {
     if (!selectedEquipmentType) return [];
@@ -132,6 +142,25 @@ export const ScrollSimulator: React.FC = () => {
     if (!selectedEquipmentType) return [];
     return getAvailableAttributesForEquipment(selectedEquipmentType);
   }, [selectedEquipmentType]);
+
+  // 動態取得目前衝卷順序中所有捲軸能衝的屬性（去重）
+  const availableScrollAttributes = useMemo(() => {
+    if (selectedScrolls.length === 0) return [];
+    const attrs = selectedScrolls
+      .map((scrollId) => {
+        const scroll = availableScrolls.find((s) => s.id === scrollId);
+        if (!scroll) return [];
+        // 主屬性
+        const arr = [scroll.primaryEffect.stat];
+        // 副屬性
+        if (scroll.secondaryEffects) {
+          arr.push(...scroll.secondaryEffects.map((e) => e.stat));
+        }
+        return arr;
+      })
+      .flat();
+    return Array.from(new Set(attrs));
+  }, [selectedScrolls, availableScrolls]);
 
   // 在 ScrollSimulator 組件內部頂部宣告 sensors，啟用 activationConstraint: { distance: 8 }
   const sensors = useSensors(
@@ -427,6 +456,11 @@ export const ScrollSimulator: React.FC = () => {
 
     setResultStats(stats);
     setIsSimulating(false);
+
+    // 模擬結束後自動滾動到結果區塊
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   }, [simulationCount, simulateSingleRun, selectedScrolls, costSettings]);
 
   // 結果分組
@@ -480,7 +514,7 @@ export const ScrollSimulator: React.FC = () => {
   }: {
     id: string;
     index: number;
-    scroll: any;
+    scroll: Scroll;
     onRemove: (idx: number) => void;
   }) {
     const {
@@ -523,7 +557,23 @@ export const ScrollSimulator: React.FC = () => {
         <div className="flex-1">
           <div className="font-medium text-white text-sm">{scroll.name}</div>
           <div className="text-xs text-gray-400">
-            +{scroll.primaryEffect.value} {scroll.primaryEffect.stat}
+            {/* <div>{scroll.successRate}%</div>  // 移除重複的%數顯示 */}
+            <div className="flex flex-wrap gap-2 mt-1">
+              {[
+                {
+                  stat: scroll.primaryEffect.stat,
+                  value: scroll.primaryEffect.value,
+                },
+                ...(scroll.secondaryEffects || []),
+              ].map((effect) => (
+                <span
+                  key={effect.stat}
+                  className="bg-gray-600/40 rounded-full px-2 py-0.5 text-xs text-gray-100"
+                >
+                  +{effect.value} {effect.stat}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
         <button
@@ -556,20 +606,19 @@ export const ScrollSimulator: React.FC = () => {
           <div className="lg:col-span-1 space-y-6">
             {/* 裝備選擇 */}
             <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <div className="text-center mb-6">
-                <div className="inline-flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl border border-blue-500/30 backdrop-blur-sm">
-                  <span className="text-2xl">⚔️</span>
-                  <h3 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                    選擇裝備
-                  </h3>
+              {/* 選擇裝備區塊 title */}
+              <div className="text-center mb-3">
+                <div className="flex items-center mb-1">
+                  <span className="mr-2 text-2xl">⚔️</span>
+                  <h3 className="text-lg font-semibold text-white">選擇裝備</h3>
                 </div>
               </div>
 
               <div className="flex space-x-4">
                 {/* 左側分類 Tab */}
                 <div className="w-20 flex-shrink-0">
-                  <div className="bg-gray-700/50 backdrop-blur-sm rounded-xl border border-gray-600/50 p-1">
-                    <div className="space-y-1">
+                  <div className="bg-gray-700/50 backdrop-blur-sm rounded-xl border border-gray-600/50 p-1 min-h-0 max-h-[320px] overflow-y-auto">
+                    <div className="space-y-3">
                       {Object.keys(EQUIPMENT_BY_CATEGORY_WITH_SCROLLS).map(
                         (category) => (
                           <button
@@ -579,7 +628,7 @@ export const ScrollSimulator: React.FC = () => {
                                 category as keyof typeof EQUIPMENT_BY_CATEGORY_WITH_SCROLLS
                               )
                             }
-                            className={`relative w-full px-2 py-2 text-xs font-medium rounded-lg transition-all duration-300 text-center overflow-hidden ${
+                            className={`relative w-full px-2 py-3 text-base font-medium rounded-lg transition-all duration-300 text-center overflow-hidden ${
                               activeCategory === category
                                 ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25"
                                 : "bg-gray-600/30 text-gray-300 hover:bg-gradient-to-r hover:from-blue-500/20 hover:to-purple-500/20 hover:text-white border border-gray-600/50"
@@ -600,7 +649,7 @@ export const ScrollSimulator: React.FC = () => {
 
                 {/* 右側裝備選項 */}
                 <div className="flex-1">
-                  <div className="bg-gray-700/30 backdrop-blur-sm rounded-xl border border-gray-600/50 p-3">
+                  <div className="bg-gray-700/30 backdrop-blur-sm rounded-xl border border-gray-600/50 p-3 max-h-[352px] overflow-y-auto">
                     <div
                       className="grid gap-2"
                       style={{
@@ -714,12 +763,16 @@ export const ScrollSimulator: React.FC = () => {
 
             {/* 期望增加值設定 */}
             <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <div className="text-center mb-6">
-                <div className="inline-flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-2xl border border-purple-500/30 backdrop-blur-sm">
-                  <span className="text-2xl">🎯</span>
-                  <h3 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              {/* 期望增加值區塊 title + 備註 */}
+              <div className="mb-3">
+                <div className="flex items-center mb-1">
+                  <span className="mr-2 text-2xl">🎯</span>
+                  <h3 className="text-lg font-semibold text-white">
                     期望增加值
                   </h3>
+                </div>
+                <div className="text-xs text-gray-400 mb-1">
+                  請輸入期望「未衝裝備」進行衝卷後，期望增加的數值
                 </div>
               </div>
 
@@ -733,7 +786,7 @@ export const ScrollSimulator: React.FC = () => {
               ) : (
                 <div className="space-y-6">
                   {/* 屬性選擇網格 */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
                     {availableAttributes.map((attribute) => {
                       const isSelected = attribute in targetIncrements;
                       return (
@@ -746,7 +799,7 @@ export const ScrollSimulator: React.FC = () => {
                               addTargetIncrement(attribute);
                             }
                           }}
-                          className={`relative p-3 rounded-xl border transition-all duration-300 group overflow-hidden ${
+                          className={`relative w-full p-2 rounded-lg border transition-all duration-300 group overflow-hidden min-h-[56px] flex flex-col items-center justify-center text-center ${
                             isSelected
                               ? "border-purple-400 bg-gradient-to-br from-purple-500/20 to-pink-500/20 shadow-lg shadow-purple-500/25"
                               : "border-gray-600/50 bg-gray-600/20 hover:border-purple-400/60 hover:bg-gradient-to-br hover:from-purple-500/10 hover:to-pink-500/10"
@@ -755,11 +808,12 @@ export const ScrollSimulator: React.FC = () => {
                           <div className="absolute inset-0 bg-gradient-to-br from-purple-400/0 to-pink-400/0 group-hover:from-purple-400/10 group-hover:to-pink-400/10 transition-all duration-300 rounded-xl"></div>
                           <div className="relative z-10 text-center">
                             <div
-                              className={`text-lg mb-1 transition-all duration-300 ${
+                              className={`text-base mb-1 transition-all duration-300 flex items-center justify-center w-full ${
                                 isSelected
-                                  ? "scale-110"
-                                  : "group-hover:scale-110"
+                                  ? "scale-105"
+                                  : "group-hover:scale-105"
                               }`}
+                              style={{ minHeight: "24px" }}
                             >
                               {ATTRIBUTE_ICONS[attribute] || "📊"}
                             </div>
@@ -824,7 +878,7 @@ export const ScrollSimulator: React.FC = () => {
           <div className="lg:col-span-1 space-y-6">
             {/* 可用卷軸 */}
             <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <div className="flex items-center mb-4 gap-3">
+              <div className="flex items-center mb-3 gap-3">
                 <h3 className="text-lg font-semibold text-white flex items-center">
                   <span className="mr-2">📜</span>
                   可用卷軸
@@ -866,42 +920,53 @@ export const ScrollSimulator: React.FC = () => {
                           {scroll.name}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {scroll.successRate}% | +{scroll.primaryEffect.value}{" "}
-                          {scroll.primaryEffect.stat}
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {[
+                              {
+                                stat: scroll.primaryEffect.stat,
+                                value: scroll.primaryEffect.value,
+                              },
+                              ...(scroll.secondaryEffects || []),
+                            ].map((effect) => (
+                              <span
+                                key={effect.stat}
+                                className="bg-gray-600/40 rounded-full px-2 py-0.5 text-xs text-gray-100"
+                              >
+                                +{effect.value} {effect.stat}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <NumberInput
-                          value={scrollCounts[scroll.id] || 1}
-                          onChange={(count) => {
-                            setScrollCounts((prev) => ({
-                              ...prev,
-                              [scroll.id]: count,
-                            }));
-                          }}
-                          min={1}
-                          max={99}
-                          className="w-16 text-sm"
-                        />
-                        <button
-                          onClick={() =>
-                            addScrollsInBatch(
-                              scroll.id,
-                              scrollCounts[scroll.id] || 1
-                            )
-                          }
-                          className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={selectedScrolls.length >= maxScrollCount}
-                          title={
-                            selectedScrolls.length >= maxScrollCount
-                              ? "已達可衝捲軸上限"
-                              : ""
-                          }
-                        >
-                          添加
-                        </button>
-                      </div>
+                      <NumberInput
+                        value={scrollCounts[scroll.id] || 1}
+                        onChange={(value) =>
+                          setScrollCounts((prev) => ({
+                            ...prev,
+                            [scroll.id]: value,
+                          }))
+                        }
+                        min={1}
+                        max={maxScrollCount - selectedScrolls.length}
+                        className="w-16 text-sm"
+                      />
+                      <button
+                        onClick={() =>
+                          addScrollsInBatch(
+                            scroll.id,
+                            scrollCounts[scroll.id] || 1
+                          )
+                        }
+                        className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={selectedScrolls.length >= maxScrollCount}
+                        title={
+                          selectedScrolls.length >= maxScrollCount
+                            ? "已達可衝捲軸上限"
+                            : ""
+                        }
+                      >
+                        添加
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -910,7 +975,7 @@ export const ScrollSimulator: React.FC = () => {
 
             {/* 衝卷順序 */}
             <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <div className="flex items-center mb-4 gap-3">
+              <div className="flex items-center mb-3 gap-3">
                 <h3 className="text-lg font-semibold text-white flex items-center">
                   <span className="mr-2">🔄</span>
                   衝卷順序
@@ -923,7 +988,7 @@ export const ScrollSimulator: React.FC = () => {
               {selectedScrolls.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-gray-400 text-center py-4">
-                    從左側拖拽卷軸到此處
+                    請從上方新增捲軸至此處
                   </p>
                 </div>
               ) : (
@@ -931,13 +996,19 @@ export const ScrollSimulator: React.FC = () => {
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
-                    onDragEnd={({ active, over }: any) => {
-                      if (active.id !== over?.id && over) {
+                    onDragEnd={({
+                      active,
+                      over,
+                    }: {
+                      active: { id: string };
+                      over: { id: string } | null;
+                    }) => {
+                      if (active.id !== over?.id) {
                         const oldIndex = selectedScrolls.findIndex(
-                          (_, i) => `${selectedScrolls[i]}-${i}` === active.id
+                          (id) => id === active.id
                         );
                         const newIndex = selectedScrolls.findIndex(
-                          (_, i) => `${selectedScrolls[i]}-${i}` === over.id
+                          (id) => id === over?.id
                         );
                         setSelectedScrolls((items) =>
                           arrayMove(items, oldIndex, newIndex)
@@ -971,9 +1042,329 @@ export const ScrollSimulator: React.FC = () => {
 
           {/* 右側：模擬設置和結果 */}
           <div className="lg:col-span-1 space-y-6">
+            {/* 成本設置 */}
+            <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
+              <h3 className="text-lg font-semibold text-white mb-1 flex items-center">
+                <span className="mr-2">💰</span>
+                成本設置
+              </h3>
+              <div className="text-xs text-gray-400 mb-2">
+                成本設置可設定未衝前之裝備價格以及捲軸價格
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="enableCost"
+                    checked={costSettings.enabled}
+                    onChange={(e) =>
+                      setCostSettings((prev) => ({
+                        ...prev,
+                        enabled: e.target.checked,
+                      }))
+                    }
+                    className="w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 focus:ring-2"
+                  />
+                  <label htmlFor="enableCost" className="text-sm text-gray-300">
+                    啟用成本計算
+                  </label>
+                </div>
+                {costSettings.enabled && selectedScrolls.length === 0 && (
+                  <div className="text-center text-red-300 py-8 text-base font-semibold">
+                    請先決定衝卷順序
+                  </div>
+                )}
+                {costSettings.enabled && selectedScrolls.length > 0 && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        尚未衝卷前的裝備價格 (雪花)
+                      </label>
+                      <NumberInput
+                        value={costSettings.cleanEquipmentPrice}
+                        onChange={(value) =>
+                          setCostSettings((prev) => ({
+                            ...prev,
+                            cleanEquipmentPrice: value,
+                          }))
+                        }
+                        className="w-full text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        卷軸價格設定
+                      </label>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {/* 只顯示衝卷順序中有用到的捲軸（去重） */}
+                        {Array.from(new Set(selectedScrolls)).map(
+                          (scrollId) => {
+                            const scroll = availableScrolls.find(
+                              (s) => s.id === scrollId
+                            );
+                            if (!scroll) return null;
+                            return (
+                              <div
+                                key={scroll.id}
+                                className="flex items-center gap-2 p-2 bg-gray-700/30 rounded"
+                              >
+                                <span className="text-xs text-gray-300 flex-1 truncate">
+                                  {scroll.name}
+                                </span>
+                                <NumberInput
+                                  value={
+                                    costSettings.scrollPrices[scroll.id] || 0
+                                  }
+                                  onChange={(value) =>
+                                    setCostSettings((prev) => ({
+                                      ...prev,
+                                      scrollPrices: {
+                                        ...prev.scrollPrices,
+                                        [scroll.id]: value,
+                                      },
+                                    }))
+                                  }
+                                  className="w-20 text-xs"
+                                  allowDecimal={true}
+                                />
+                                <span className="text-xs text-gray-400">
+                                  雪花
+                                </span>
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 停損設置 */}
+            <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
+              {/* 停損設置區塊 title + 備註 */}
+              <h3 className="text-lg font-semibold text-white mb-1 flex items-center">
+                <span className="mr-2">🛑</span>
+                停損設置
+              </h3>
+              <div className="text-xs text-gray-400 mb-2">
+                停損設置會在指定張數後檢查屬性，若未達最低要求則會跳過當次衝裝，接著衝下一個裝備。適合用來模擬「沒達標就停手」的情境。
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="enableStopLoss"
+                    checked={stopLossSettings.enabled}
+                    onChange={(e) =>
+                      setStopLossSettings((prev) => ({
+                        ...prev,
+                        enabled: e.target.checked,
+                      }))
+                    }
+                    className="w-4 h-4 text-red-600 bg-gray-700 border-gray-600 rounded focus:ring-red-500 focus:ring-2"
+                  />
+                  <label
+                    htmlFor="enableStopLoss"
+                    className="text-sm text-gray-300"
+                  >
+                    啟用停損條件
+                  </label>
+                </div>
+
+                {stopLossSettings.enabled && selectedScrolls.length === 0 && (
+                  <div className="text-center text-red-300 py-8 text-base font-semibold">
+                    請先決定衝卷順序
+                  </div>
+                )}
+                {stopLossSettings.enabled && selectedScrolls.length > 0 && (
+                  <div className="space-y-3">
+                    {stopLossSettings.conditions.map((condition, index) => (
+                      <div
+                        key={index}
+                        className="p-4 bg-red-500/10 rounded-lg border border-red-500/30"
+                      >
+                        <div className="text-xs text-red-300 mb-2">
+                          停損條件 #{index + 1}
+                        </div>
+                        {/* 第一行：屬性、最低要求 */}
+                        <div className="flex flex-wrap md:flex-nowrap items-center gap-3 mb-3">
+                          <div className="flex flex-col md:flex-row md:items-center md:min-w-[140px] w-full md:w-auto">
+                            <label className="text-xs text-gray-400 md:mb-0 mb-1 md:mr-2 mr-0 whitespace-nowrap">
+                              屬性
+                            </label>
+                            <RadixSelect.Root
+                              value={condition.attribute}
+                              onValueChange={(value: string) => {
+                                const newConditions = [
+                                  ...stopLossSettings.conditions,
+                                ];
+                                newConditions[index].attribute = value;
+                                setStopLossSettings((prev) => ({
+                                  ...prev,
+                                  conditions: newConditions,
+                                }));
+                              }}
+                            >
+                              <RadixSelect.Trigger
+                                className="w-28 md:w-32 px-3 py-2 bg-gray-800/80 border border-purple-400/40 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition-all outline-none shadow-sm flex items-center justify-between hover:border-purple-400/80"
+                                aria-label="選擇屬性"
+                              >
+                                <RadixSelect.Value />
+                                <RadixSelect.Icon className="ml-2 text-purple-300">
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                      d="M19 9l-7 7-7-7"
+                                    />
+                                  </svg>
+                                </RadixSelect.Icon>
+                              </RadixSelect.Trigger>
+                              <RadixSelect.Portal>
+                                <RadixSelect.Content
+                                  className="z-[120] mt-1 w-[var(--radix-select-trigger-width)] bg-gray-900/95 border border-purple-400/40 rounded-lg shadow-lg ring-1 ring-black/10 focus:outline-none text-white text-sm max-h-60 overflow-auto animate-fadeIn"
+                                  position="popper"
+                                  sideOffset={4}
+                                >
+                                  <RadixSelect.Viewport>
+                                    {availableScrollAttributes.map((attr) => (
+                                      <RadixSelect.Item
+                                        key={attr}
+                                        value={attr}
+                                        className="cursor-pointer select-none relative pl-8 pr-4 py-2 transition-colors rounded-lg flex items-center data-[highlighted]:bg-purple-500/20 data-[highlighted]:text-purple-200 data-[state=checked]:bg-purple-500/40 data-[state=checked]:text-purple-100 data-[state=checked]:font-bold"
+                                      >
+                                        <RadixSelect.ItemIndicator className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center">
+                                          <svg
+                                            className="w-4 h-4 text-purple-300"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                          >
+                                            <path
+                                              fillRule="evenodd"
+                                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                              clipRule="evenodd"
+                                            />
+                                          </svg>
+                                        </RadixSelect.ItemIndicator>
+                                        <RadixSelect.ItemText>
+                                          {attr}
+                                        </RadixSelect.ItemText>
+                                      </RadixSelect.Item>
+                                    ))}
+                                  </RadixSelect.Viewport>
+                                </RadixSelect.Content>
+                              </RadixSelect.Portal>
+                            </RadixSelect.Root>
+                          </div>
+                          <div className="flex flex-col md:flex-row md:items-center md:min-w-[120px] w-full md:w-auto">
+                            <label className="text-xs text-gray-400 md:mb-0 mb-1 md:mr-2 mr-0 whitespace-nowrap">
+                              最低要求
+                            </label>
+                            <NumberInput
+                              value={condition.minValue}
+                              onChange={(value) => {
+                                const newConditions = [
+                                  ...stopLossSettings.conditions,
+                                ];
+                                newConditions[index].minValue = value;
+                                setStopLossSettings((prev) => ({
+                                  ...prev,
+                                  conditions: newConditions,
+                                }));
+                              }}
+                              min={1}
+                              className="w-16 text-sm"
+                            />
+                          </div>
+                        </div>
+                        {/* 第二行：檢查時機、刪除按鈕 */}
+                        <div className="flex flex-wrap md:flex-nowrap items-center gap-3">
+                          <div className="flex flex-row items-center md:min-w-[170px] w-full md:w-auto">
+                            <label className="text-xs text-gray-400 mr-2 whitespace-nowrap">
+                              檢查時機：
+                            </label>
+                            <span className="text-sm text-gray-300 mr-1">
+                              第
+                            </span>
+                            <NumberInput
+                              value={condition.scrollIndex}
+                              onChange={(value) => {
+                                const newConditions = [
+                                  ...stopLossSettings.conditions,
+                                ];
+                                newConditions[index].scrollIndex = value;
+                                setStopLossSettings((prev) => ({
+                                  ...prev,
+                                  conditions: newConditions,
+                                }));
+                              }}
+                              min={1}
+                              max={selectedScrolls.length || 999}
+                              className="w-14 text-sm"
+                            />
+                            <span className="text-sm text-gray-300 ml-1">
+                              張卷軸後
+                            </span>
+                          </div>
+                          <div className="flex-shrink-0 flex items-center md:ml-4 ml-0 mt-2 md:mt-0">
+                            <button
+                              onClick={() => {
+                                const newConditions =
+                                  stopLossSettings.conditions.filter(
+                                    (_, i) => i !== index
+                                  );
+                                setStopLossSettings((prev) => ({
+                                  ...prev,
+                                  conditions: newConditions,
+                                }));
+                              }}
+                              className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-sm transition-colors h-10 min-w-[56px] flex items-center justify-center"
+                            >
+                              刪除
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {availableScrollAttributes.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setStopLossSettings((prev) => ({
+                            ...prev,
+                            conditions: [
+                              ...prev.conditions,
+                              {
+                                attribute: availableScrollAttributes[0],
+                                minValue: 1,
+                                scrollIndex: 1,
+                              },
+                            ],
+                          }));
+                        }}
+                        className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-medium rounded-lg border border-red-500/30 transition-all mt-2"
+                      >
+                        + 添加停損條件
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* 模擬設置 */}
             <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <h3 className="text-lg font-semibold text-white mb-1 flex items-center">
                 <span className="mr-2">🎮</span>
                 模擬設置
               </h3>
@@ -1002,247 +1393,8 @@ export const ScrollSimulator: React.FC = () => {
 
                 {selectedScrolls.length === 0 && (
                   <p className="text-center text-sm text-gray-400">
-                    請先選擇卷軸順序
+                    請先決定衝卷順序
                   </p>
-                )}
-              </div>
-            </div>
-
-            {/* 成本設置 */}
-            <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <span className="mr-2">💰</span>
-                成本設置
-              </h3>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="enableCost"
-                    checked={costSettings.enabled}
-                    onChange={(e) =>
-                      setCostSettings((prev) => ({
-                        ...prev,
-                        enabled: e.target.checked,
-                      }))
-                    }
-                    className="w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 focus:ring-2"
-                  />
-                  <label htmlFor="enableCost" className="text-sm text-gray-300">
-                    啟用成本計算
-                  </label>
-                </div>
-
-                {costSettings.enabled && (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">
-                        乾淨裝備價格 (雪花)
-                      </label>
-                      <NumberInput
-                        value={costSettings.cleanEquipmentPrice}
-                        onChange={(value) =>
-                          setCostSettings((prev) => ({
-                            ...prev,
-                            cleanEquipmentPrice: value,
-                          }))
-                        }
-                        className="w-full text-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">
-                        卷軸價格設定
-                      </label>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {availableScrolls.map((scroll) => (
-                          <div
-                            key={scroll.id}
-                            className="flex items-center gap-2 p-2 bg-gray-700/30 rounded"
-                          >
-                            <span className="text-xs text-gray-300 flex-1 truncate">
-                              {scroll.name}
-                            </span>
-                            <NumberInput
-                              value={costSettings.scrollPrices[scroll.id] || 0}
-                              onChange={(value) =>
-                                setCostSettings((prev) => ({
-                                  ...prev,
-                                  scrollPrices: {
-                                    ...prev.scrollPrices,
-                                    [scroll.id]: value,
-                                  },
-                                }))
-                              }
-                              className="w-20 text-xs"
-                              allowDecimal={true}
-                            />
-                            <span className="text-xs text-gray-400">雪花</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 停損設置 */}
-            <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <span className="mr-2">🛑</span>
-                停損設置
-              </h3>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="enableStopLoss"
-                    checked={stopLossSettings.enabled}
-                    onChange={(e) =>
-                      setStopLossSettings((prev) => ({
-                        ...prev,
-                        enabled: e.target.checked,
-                      }))
-                    }
-                    className="w-4 h-4 text-red-600 bg-gray-700 border-gray-600 rounded focus:ring-red-500 focus:ring-2"
-                  />
-                  <label
-                    htmlFor="enableStopLoss"
-                    className="text-sm text-gray-300"
-                  >
-                    啟用停損條件
-                  </label>
-                </div>
-
-                {stopLossSettings.enabled && (
-                  <div className="space-y-3">
-                    {stopLossSettings.conditions.map((condition, index) => (
-                      <div
-                        key={index}
-                        className="p-3 bg-red-500/10 rounded-lg border border-red-500/30"
-                      >
-                        <div className="text-xs text-red-300 mb-2">
-                          停損條件 #{index + 1}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">
-                              屬性
-                            </label>
-                            <select
-                              value={condition.attribute}
-                              onChange={(e) => {
-                                const newConditions = [
-                                  ...stopLossSettings.conditions,
-                                ];
-                                newConditions[index].attribute = e.target.value;
-                                setStopLossSettings((prev) => ({
-                                  ...prev,
-                                  conditions: newConditions,
-                                }));
-                              }}
-                              className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                            >
-                              {availableAttributes.map((attr) => (
-                                <option key={attr} value={attr}>
-                                  {attr}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">
-                              最低要求
-                            </label>
-                            <NumberInput
-                              value={condition.minValue}
-                              onChange={(value) => {
-                                const newConditions = [
-                                  ...stopLossSettings.conditions,
-                                ];
-                                newConditions[index].minValue = value;
-                                setStopLossSettings((prev) => ({
-                                  ...prev,
-                                  conditions: newConditions,
-                                }));
-                              }}
-                              className="w-full text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-300">
-                              檢查時機：第
-                            </span>
-                            <NumberInput
-                              value={condition.scrollIndex}
-                              onChange={(value) => {
-                                const newConditions = [
-                                  ...stopLossSettings.conditions,
-                                ];
-                                newConditions[index].scrollIndex = value;
-                                setStopLossSettings((prev) => ({
-                                  ...prev,
-                                  conditions: newConditions,
-                                }));
-                              }}
-                              min={1}
-                              max={selectedScrolls.length || 999}
-                              className="w-16 text-sm"
-                            />
-                            <span className="text-sm text-gray-300">
-                              張卷軸後
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={() => {
-                              const newConditions =
-                                stopLossSettings.conditions.filter(
-                                  (_, i) => i !== index
-                                );
-                              setStopLossSettings((prev) => ({
-                                ...prev,
-                                conditions: newConditions,
-                              }));
-                            }}
-                            className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-sm transition-colors"
-                          >
-                            刪除
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-
-                    {availableAttributes.length > 0 && (
-                      <button
-                        onClick={() => {
-                          setStopLossSettings((prev) => ({
-                            ...prev,
-                            conditions: [
-                              ...prev.conditions,
-                              {
-                                attribute: availableAttributes[0],
-                                minValue: 1,
-                                scrollIndex: 1,
-                              },
-                            ],
-                          }));
-                        }}
-                        className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-medium rounded-lg border border-red-500/30 transition-all"
-                      >
-                        + 添加停損條件
-                      </button>
-                    )}
-                  </div>
                 )}
               </div>
             </div>
@@ -1251,9 +1403,9 @@ export const ScrollSimulator: React.FC = () => {
 
         {/* 結果顯示區域 */}
         {results.length > 0 && (
-          <div className="mt-8">
+          <div ref={resultRef} className="mt-8">
             <div className="bg-gray-800/90 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <h3 className="text-lg font-semibold text-white mb-1 flex items-center">
                 <span className="mr-2">📈</span>
                 模擬結果
               </h3>
