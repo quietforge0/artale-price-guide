@@ -591,7 +591,7 @@ export const ScrollSimulator: React.FC = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-300 to-gray-400 bg-clip-text text-transparent mb-4">
-            Artale賭狗計算機
+            Artale賭狗模擬器
           </h1>
           <p className="text-gray-400 text-lg mb-2">
             選擇裝備、拖拽卷軸順序、設定期望值與停損條件，然後點擊「開始模擬」即可快速計算各種衝卷結果分布、平均成本與成功率。
