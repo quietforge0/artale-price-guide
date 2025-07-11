@@ -5,7 +5,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm test:health && vite",
+    "dev": "node ./fix-vite-crypto.cjs && pnpm test:health && vite",
     "dev:fast": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

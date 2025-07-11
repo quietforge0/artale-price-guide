@@ -7,6 +7,10 @@ import {
   ATTRIBUTE_ICONS,
 } from "../constants/equipment.ts";
 import { getAvailableAttributesForEquipment } from "../constants/scrolls.ts";
+import scroll10 from "../assets/10.webp";
+import scroll30 from "../assets/30.webp";
+import scroll60 from "../assets/60.webp";
+import scroll100 from "../assets/100.webp";
 
 // 模擬結果
 interface SimulationResult {
@@ -456,12 +460,22 @@ export const ScrollSimulator: React.FC = () => {
     return { stopLoss, byAttribute };
   }, [results]);
 
+  // 在檔案最上方 import 卷軸 icon
+  // 在組件內部加一個根據 successRate 回傳 icon 的小工具函式
+  const getScrollIcon = (successRate: number) => {
+    if (successRate === 10) return scroll10;
+    if (successRate === 30) return scroll30;
+    if (successRate === 60) return scroll60;
+    if (successRate === 100) return scroll100;
+    return scroll10; // fallback
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900/20 to-purple-900/20">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-300 to-gray-400 bg-clip-text text-transparent mb-4">
-            artale賭狗計算機
+            Artale賭狗計算機
           </h1>
           <p className="text-gray-400 text-lg mb-2">
             選擇裝備、拖拽卷軸順序、設定期望值與停損條件，然後點擊「開始模擬」即可快速計算各種衝卷結果分布、平均成本與成功率。
@@ -724,6 +738,11 @@ export const ScrollSimulator: React.FC = () => {
                       key={scroll.id}
                       className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-all"
                     >
+                      <img
+                        src={getScrollIcon(scroll.successRate)}
+                        alt={scroll.successRate + "% icon"}
+                        className="w-8 h-8 rounded shadow border border-gray-600/50 bg-gray-800/60"
+                      />
                       <div className="flex-1">
                         <div className="font-medium text-white text-sm">
                           {scroll.name}
@@ -798,6 +817,11 @@ export const ScrollSimulator: React.FC = () => {
                             : "border-gray-600/50 bg-gray-700/30 hover:bg-gray-700/50"
                         }`}
                       >
+                        <img
+                          src={getScrollIcon(scroll.successRate)}
+                          alt={scroll.successRate + "% icon"}
+                          className="w-8 h-8 rounded shadow border border-gray-600/50 bg-gray-800/60"
+                        />
                         <div className="flex items-center gap-2">
                           <span className="text-gray-400 text-sm font-mono">
                             #{index + 1}
@@ -1164,6 +1188,11 @@ export const ScrollSimulator: React.FC = () => {
                                 key={scrollId}
                                 className="flex items-center justify-between p-2 bg-blue-500/5 rounded text-xs"
                               >
+                                <img
+                                  src={getScrollIcon(scroll?.successRate || 10)}
+                                  alt={(scroll?.successRate || 10) + "% icon"}
+                                  className="w-6 h-6 rounded shadow border border-gray-600/50 bg-gray-800/60 mr-2"
+                                />
                                 <span className="text-gray-300 truncate">
                                   {scroll?.name || scrollId}
                                 </span>
